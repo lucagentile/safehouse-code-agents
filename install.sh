@@ -33,7 +33,7 @@ echo
 # Hard dependency check.
 if ! command -v safehouse >/dev/null 2>&1; then
     cat >&2 <<EOF
-Agent Safehouse is required but not on PATH.
+Agent Safehouse >= 0.10.0 is required but not on PATH.
 
 Install it first:
   brew install eugene1g/safehouse/agent-safehouse

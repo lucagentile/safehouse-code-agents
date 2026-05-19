@@ -6,6 +6,7 @@
 ;; Safehouse's base or auto-included integrations granted.
 ;;
 ;; What we change vs Safehouse defaults for Claude Code:
+;;
 ;;   1. Re-deny the macOS Keychain. Safehouse auto-includes keychain.sb when
 ;;      it detects "claude" on the command line, which grants the sandboxed
 ;;      agent wholesale access to the login keychain (every credential you
@@ -14,17 +15,12 @@
 ;;      and writes it to ~/.claude/.credentials.json (claude's plaintext
 ;;      fallback path). Inside the sandbox, only that one token is reachable.
 ;;
-;;   2. Allow file-ioctl on tty/pty paths. Safehouse's base allows
-;;      pseudo-tty (open /dev/ptmx) but not file-ioctl on the resulting fd,
-;;      so tcsetattr(TCSADRAIN, ...) silently fails. Any agent that switches
-;;      the terminal to raw mode then leaks keystrokes (Ctrl+C becomes
-;;      ^[[99;5u in the input buffer) and capability-query replies into the
-;;      TUI. Upstream PR: eugene1g/agent-safehouse#98. Drop this block once
-;;      that lands.
-;;
-;;   3. Cloud-credential hardening. Default-deny already covers these but
+;;   2. Cloud-credential hardening. Default-deny already covers these but
 ;;      Safehouse may have shipped or may later ship integrations that grant
 ;;      them - belt-and-suspenders.
+;;
+;; Requires Safehouse >= 0.10.0 (the version that ships the file-ioctl allow
+;; for tty/pty paths upstream, via eugene1g/agent-safehouse#98).
 ;; ---------------------------------------------------------------------------
 
 ;; 1) Re-deny Keychain. Last-match-wins, so these denies override the allows
@@ -50,18 +46,7 @@
     (ipc-posix-name "com.apple.AppleDatabaseChanged")
 )
 
-;; 2) TTY ioctls. pseudo-tty only covers opening /dev/ptmx. Ioctls on the
-;;    resulting tty fd are a separate file-ioctl category in SBPL.
-;;    Without this, tcsetattr silently fails and any agent in raw mode is
-;;    broken under the sandbox.
-(allow file-ioctl
-    (literal "/dev/tty")
-    (literal "/dev/ptmx")
-    (regex #"^/dev/ttys")
-    (regex #"^/dev/pty")
-)
-
-;; 3) Cloud-credential hardening. Explicit even though default-deny covers it.
+;; 2) Cloud-credential hardening. Explicit even though default-deny covers it.
 (deny file-read* file-write*
     (home-subpath "/.aws")
     (home-subpath "/.config/gcloud")

@@ -2,14 +2,20 @@
 
 A thin opinionated layer on top of [Agent Safehouse](https://github.com/eugene1g/agent-safehouse)
 that runs Claude Code (and other macOS coding agents) under `sandbox-exec`
-with two extras that Safehouse's defaults don't cover:
+with one substantive divergence from Safehouse defaults:
 
-1. **Narrow OAuth credential bridge** instead of wholesale Keychain access.
-2. **`file-ioctl` allow on tty/pty paths** so `tcsetattr` works under the
-   sandbox (any agent that takes the terminal raw needs this, until upstream
-   merges [eugene1g/agent-safehouse#98](https://github.com/eugene1g/agent-safehouse/pull/98)).
+- **Narrow OAuth credential bridge** instead of wholesale Keychain access.
+  Safehouse's auto-included `keychain.sb` module gives the sandboxed agent
+  access to your entire login Keychain. This wrapper lifts only the
+  `Claude Code-credentials` Keychain item out before entering the sandbox,
+  writes it to claude's plaintext-fallback path, and unlinks it on exit.
 
-Plus a hostname-filtering loopback egress proxy and a few minor conveniences.
+Plus a hostname-filtering loopback egress proxy and a couple of minor
+conveniences (namespace-aware RW grant via `--add-dirs`, optional shell
+function-style entry-point).
+
+Requires **Agent Safehouse >= 0.10.0** (the version that includes the
+`file-ioctl` allow for tty/pty paths — [PR #98](https://github.com/eugene1g/agent-safehouse/pull/98)).
 
 ## Architecture
 
@@ -38,18 +44,16 @@ Plus a hostname-filtering loopback egress proxy and a few minor conveniences.
 |   - assembles full sandbox-exec policy       |
 |   - auto-includes claude-code + keychain     |
 |   - last-loaded: our overlay re-DENIES       |
-|     keychain and ALLOWS file-ioctl on tty    |
+|     wholesale keychain access                 |
 |   - execs sandbox-exec                       |
 +----------------------------------------------+
 ```
 
-The overlay file (`overlay/claude-narrow.sb`) is ~50 lines and is the entirety
+The overlay file (`overlay/claude-narrow.sb`) is ~40 lines and is the entirety
 of what this repo adds to Safehouse's policy. Everything else here is
 plumbing for the credential bridge and the egress proxy.
 
-## Why these two extras
-
-### Keychain bridge
+## Why the keychain bridge
 
 Safehouse ships `keychain.sb`, an opt-in module that grants the sandboxed
 agent wholesale access to your login Keychain. The CLI auto-enables it when
@@ -68,22 +72,6 @@ the claude token is reachable.
 
 The overlay then re-denies the mach-lookups and file paths that the
 auto-included `keychain.sb` had allowed. Last-match-wins in SBPL.
-
-### `file-ioctl` on tty/pty
-
-Safehouse's base allows `pseudo-tty`, which only covers opening `/dev/ptmx`.
-`tcsetattr` (`TIOCSETAW` = `_IO('t', 21)`) is a `file-ioctl` operation, a
-separate SBPL category. Without an explicit `file-ioctl` allow, the call
-silently fails: the terminal stays in cooked mode while the agent thinks it
-took raw control. Every keypress and every capability-query reply then
-leaks into the agent's TUI input buffer as a literal escape sequence
-(`^[[99;5u` for Ctrl+C, `^[[27u` for Esc, `^[[?62;22;52c` for DA1, etc.).
-Ctrl+C never delivers SIGINT.
-
-The overlay adds `(allow file-ioctl ...)` for `/dev/tty`, `/dev/ttys*`,
-`/dev/pty*`, and `/dev/ptmx`. Same fix has been proposed upstream as
-[#98](https://github.com/eugene1g/agent-safehouse/pull/98); when that lands,
-this block can be deleted from the overlay.
 
 ## What's in the repo
 
@@ -198,9 +186,12 @@ is printed with the syscall and path. Two paths to fix:
 
 This is a downstream layer, not a fork. We don't ship a copy of Safehouse's
 policy; we depend on the `safehouse` CLI at runtime via `--append-profile`.
-When Safehouse updates, this repo benefits without any change here. When the
-file-ioctl PR ([#98](https://github.com/eugene1g/agent-safehouse/pull/98))
-merges, the matching block can be dropped from our overlay.
+When Safehouse updates, this repo benefits without any change here.
+
+A previous version of this overlay also patched in a `file-ioctl` allow on
+tty/pty paths to fix `tcsetattr` under the sandbox. That fix landed upstream
+in Safehouse v0.10.0 ([PR #98](https://github.com/eugene1g/agent-safehouse/pull/98))
+and was removed from the overlay.
 
 ## License
 
