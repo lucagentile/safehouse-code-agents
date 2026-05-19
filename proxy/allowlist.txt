@@ -1,0 +1,33 @@
+# Egress allowlist for the sandboxed-agent proxy (tinyproxy).
+# Format: POSIX extended regex, one hostname per line, case-insensitive match.
+# Anchor every entry with ^ and $ so that "github.com" does not also allow
+# "github.com.evil.tld" or "subdomain.github.com.attacker".
+#
+# Tinyproxy reads this file via FilterExtended Yes + FilterDefaultDeny Yes:
+# anything not matching any line below is rejected at the proxy.
+
+# ── Anthropic ───────────────────────────────────────────────────────────────
+^api\.anthropic\.com$
+^statsig\.anthropic\.com$
+
+# ── OpenAI / Codex ──────────────────────────────────────────────────────────
+^api\.openai\.com$
+^chatgpt\.com$
+
+# ── GitHub (code, releases, raw, archives) ─────────────────────────────────
+^github\.com$
+^api\.github\.com$
+^codeload\.github\.com$
+^[^.]+\.githubusercontent\.com$
+^objects\.githubusercontent\.com$
+
+# ── Package registries ──────────────────────────────────────────────────────
+^registry\.npmjs\.org$
+^registry\.yarnpkg\.com$
+^npm\.pkg\.github\.com$            # GitHub Packages npm scope
+^pypi\.org$
+^files\.pythonhosted\.org$
+^crates\.io$
+^static\.crates\.io$
+^proxy\.golang\.org$
+^sum\.golang\.org$

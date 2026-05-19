@@ -1,0 +1,37 @@
+# tinyproxy config - loopback-only egress filter for sandboxed agents.
+# Listens on 127.0.0.1:8118 and filters by hostname against the allowlist file.
+# Started at login by the dev.safehouse.tinyproxy LaunchAgent.
+#
+# Placeholders substituted by install.sh:
+#   __USER__   current user (id -un)
+#   __GROUP__  current user's primary group (id -gn)
+#   __HOME__   $HOME absolute path
+#   __PREFIX__ install prefix (e.g. ~/.local/share/safehouse-code-agents)
+
+User __USER__
+Group __GROUP__
+
+Port 8118
+Listen 127.0.0.1
+Timeout 600
+
+LogLevel Notice
+LogFile "__HOME__/Library/Logs/safehouse-tinyproxy.log"
+
+PidFile "/tmp/safehouse-tinyproxy.pid"
+
+MaxClients 100
+
+DisableViaHeader Yes
+
+# Hostname allowlist (POSIX extended regex, case-insensitive).
+# FilterType ere replaces the deprecated FilterExtended directive.
+Filter "__PREFIX__/proxy/allowlist.txt"
+FilterDefaultDeny Yes
+FilterURLs No
+FilterType ere
+FilterCaseSensitive No
+
+# Only allow CONNECT to standard HTTPS / HTTP ports - no arbitrary ports.
+ConnectPort 443
+ConnectPort 80

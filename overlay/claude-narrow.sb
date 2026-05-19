@@ -1,0 +1,69 @@
+;; ---------------------------------------------------------------------------
+;; overlay/claude-narrow.sb
+;;
+;; Append-profile for safehouse-code-agents. Loaded LAST by Safehouse via
+;; --append-profile, so the rules below override any earlier allows that
+;; Safehouse's base or auto-included integrations granted.
+;;
+;; What we change vs Safehouse defaults for Claude Code:
+;;   1. Re-deny the macOS Keychain. Safehouse auto-includes keychain.sb when
+;;      it detects "claude" on the command line, which grants the sandboxed
+;;      agent wholesale access to the login keychain (every credential you
+;;      have ever saved). We don't want that. The wrapper extracts only the
+;;      "Claude Code-credentials" Keychain item BEFORE entering the sandbox
+;;      and writes it to ~/.claude/.credentials.json (claude's plaintext
+;;      fallback path). Inside the sandbox, only that one token is reachable.
+;;
+;;   2. Allow file-ioctl on tty/pty paths. Safehouse's base allows
+;;      pseudo-tty (open /dev/ptmx) but not file-ioctl on the resulting fd,
+;;      so tcsetattr(TCSADRAIN, ...) silently fails. Any agent that switches
+;;      the terminal to raw mode then leaks keystrokes (Ctrl+C becomes
+;;      ^[[99;5u in the input buffer) and capability-query replies into the
+;;      TUI. Upstream PR: eugene1g/agent-safehouse#98. Drop this block once
+;;      that lands.
+;;
+;;   3. Cloud-credential hardening. Default-deny already covers these but
+;;      Safehouse may have shipped or may later ship integrations that grant
+;;      them - belt-and-suspenders.
+;; ---------------------------------------------------------------------------
+
+;; 1) Re-deny Keychain. Last-match-wins, so these denies override the allows
+;;    that profiles/55-integrations-optional/keychain.sb emitted earlier.
+(deny mach-lookup
+    (global-name "com.apple.SecurityServer")
+    (global-name "com.apple.security.agent")
+    (global-name "com.apple.securityd.xpc")
+    (global-name "com.apple.security.authhost")
+    (global-name "com.apple.secd")
+    (global-name "com.apple.trustd")
+)
+(deny file-read* file-write*
+    (home-subpath "/Library/Keychains")
+    (home-literal "/Library/Preferences/com.apple.security.plist")
+)
+(deny file-read*
+    (literal "/Library/Preferences/com.apple.security.plist")
+    (literal "/Library/Keychains/System.keychain")
+    (subpath "/private/var/db/mds")
+)
+(deny ipc-posix-shm-read-data ipc-posix-shm-write-create ipc-posix-shm-write-data
+    (ipc-posix-name "com.apple.AppleDatabaseChanged")
+)
+
+;; 2) TTY ioctls. pseudo-tty only covers opening /dev/ptmx. Ioctls on the
+;;    resulting tty fd are a separate file-ioctl category in SBPL.
+;;    Without this, tcsetattr silently fails and any agent in raw mode is
+;;    broken under the sandbox.
+(allow file-ioctl
+    (literal "/dev/tty")
+    (literal "/dev/ptmx")
+    (regex #"^/dev/ttys")
+    (regex #"^/dev/pty")
+)
+
+;; 3) Cloud-credential hardening. Explicit even though default-deny covers it.
+(deny file-read* file-write*
+    (home-subpath "/.aws")
+    (home-subpath "/.config/gcloud")
+    (home-subpath "/.azure")
+)

@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# safehouse-claude
+# Thin wrapper that runs Claude Code under the safehouse sandbox-exec policy.
+# Forwards all args verbatim. The OAuth credential bridge is handled by
+# run-sandboxed.sh based on the command name.
+set -euo pipefail
+
+# Resolve our own path through any symlinks so we find run-sandboxed.sh
+# next to it, even when invoked via a symlink in BINDIR.
+_self="${BASH_SOURCE[0]}"
+while [ -L "$_self" ]; do
+    _target="$(readlink "$_self")"
+    case "$_target" in
+        /*) _self="$_target" ;;
+        *)  _self="$(dirname "$_self")/$_target" ;;
+    esac
+done
+SCRIPT_DIR="$(cd "$(dirname "$_self")" && pwd -P)"
+
+exec "$SCRIPT_DIR/run-sandboxed.sh" -- claude "$@"
