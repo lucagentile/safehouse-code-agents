@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Overlay now allows `~/.ssh/*.pub` reads. Without this, SSH-based git
+  commit signing fails inside the sandbox with `Couldn't load public key
+  /Users/.../.ssh/id_rsa.pub` because Safehouse's `ssh.sb` integration
+  re-opens the agent socket but leaves the rest of `~/.ssh/` denied.
+  Public keys are public by definition; private keys stay denied.
 - Added gh CLI token bridge. `gh auth token` is read on the host before
   entering the sandbox and exported as `GH_TOKEN` so the sandboxed gh CLI
   authenticates without Keychain access. Disable with `SAFEHOUSE_BRIDGE_GH=0`.

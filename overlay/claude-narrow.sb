@@ -15,7 +15,13 @@
 ;;      and writes it to ~/.claude/.credentials.json (claude's plaintext
 ;;      fallback path). Inside the sandbox, only that one token is reachable.
 ;;
-;;   2. Cloud-credential hardening. Default-deny already covers these but
+;;   2. Allow ~/.ssh/*.pub reads. With --enable=ssh, Safehouse re-opens the
+;;      agent socket but still denies the rest of ~/.ssh, breaking SSH-based
+;;      git commit signing (which reads ~/.ssh/id_*.pub to identify which
+;;      key the agent should use to sign). Public keys are public by design;
+;;      private keys stay denied so signing material never leaks.
+;;
+;;   3. Cloud-credential hardening. Default-deny already covers these but
 ;;      Safehouse may have shipped or may later ship integrations that grant
 ;;      them - belt-and-suspenders.
 ;;
@@ -46,7 +52,19 @@
     (ipc-posix-name "com.apple.AppleDatabaseChanged")
 )
 
-;; 2) Cloud-credential hardening. Explicit even though default-deny covers it.
+;; 2) SSH public keys for commit signing.
+;;    With --enable=ssh, Safehouse re-allows agent socket access but still
+;;    denies the broader ~/.ssh/ subpath including .pub files. Git's SSH
+;;    commit signing reads ~/.ssh/id_*.pub before handing the signing job
+;;    to the agent, so without this it fails with:
+;;      error: Couldn't load public key /Users/.../.ssh/id_rsa.pub
+;;    Allowing just *.pub keeps private keys denied (defense-in-depth) -
+;;    the agent on the host still does the actual signing.
+(allow file-read*
+    (regex (string-append "^" HOME_DIR "/\\.ssh/[^/]+\\.pub$"))
+)
+
+;; 3) Cloud-credential hardening. Explicit even though default-deny covers it.
 (deny file-read* file-write*
     (home-subpath "/.aws")
     (home-subpath "/.config/gcloud")
