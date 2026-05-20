@@ -141,6 +141,24 @@ export SAFEHOUSE_NAMESPACE_ROOT="$HOME/Workspace/coding"
 | `SAFEHOUSE_BRIDGE_CLAUDE`   | `1`                                    | Set to `0` to skip the Claude OAuth bridge          |
 | `SAFEHOUSE_EXTRA_ARGS`      | unset                                  | Extra args passed verbatim to `safehouse`           |
 
+### Git push over SSH
+
+By default Safehouse denies the SSH agent socket, so `git@github.com:...`
+remotes can't authenticate from inside the sandbox. To enable:
+
+```
+export SAFEHOUSE_EXTRA_ARGS="--enable=ssh"
+```
+
+That flips Safehouse's `ssh.sb` integration on, which re-opens the launchd
+SSH socket. The wrapper preserves `SSH_AUTH_SOCK` so the sandboxed
+process can find the agent. Keys stay denied (defense-in-depth); only
+keys already loaded into the agent on the host can sign anything.
+
+If you'd rather keep ssh denied, push over HTTPS instead - `gh auth token`
+plus a stored credential helper works inside the sandbox without
+relaxing the policy.
+
 ## How the credential bridge works
 
 Claude Code stores its OAuth token in the macOS login Keychain as a generic

@@ -26,10 +26,14 @@
 set -euo pipefail
 
 # Strip env vars that could be used to bypass the sandbox.
+# DYLD_*: dyld-injection class (CVE-2024-23253, CVE-2024-40831 lineage).
+# SSH_AUTH_SOCK is kept so users who opt in to ssh via
+#   SAFEHOUSE_EXTRA_ARGS="--enable=ssh"
+# can push over git@github.com. Safehouse's base still default-denies the
+# socket unless --enable=ssh is set.
 unset DYLD_INSERT_LIBRARIES DYLD_LIBRARY_PATH DYLD_FRAMEWORK_PATH \
       DYLD_FALLBACK_LIBRARY_PATH DYLD_FALLBACK_FRAMEWORK_PATH \
-      DYLD_VERSIONED_LIBRARY_PATH DYLD_VERSIONED_FRAMEWORK_PATH \
-      SSH_AUTH_SOCK
+      DYLD_VERSIONED_LIBRARY_PATH DYLD_VERSIONED_FRAMEWORK_PATH
 
 # Resolve own path through symlinks (script may be invoked via a BINDIR link).
 _self="${BASH_SOURCE[0]}"

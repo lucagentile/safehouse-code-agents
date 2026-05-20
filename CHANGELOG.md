@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Wrapper no longer unsets `SSH_AUTH_SOCK`. Combined with
+  `SAFEHOUSE_EXTRA_ARGS="--enable=ssh"`, this lets `git push` over
+  `git@github.com:...` work from inside the sandbox. The base policy still
+  default-denies the socket unless `--enable=ssh` is set, so the previous
+  default-deny behavior is preserved for users who don't set the env.
 - Credential bridge: always overwrite `~/.claude/.credentials.json` at launch.
   Previously the bridge refused to clobber a pre-existing file as a safety
   guard, but in practice the only file ever in that path is one we wrote
