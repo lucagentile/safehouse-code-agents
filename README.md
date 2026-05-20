@@ -139,6 +139,7 @@ export SAFEHOUSE_NAMESPACE_ROOT="$HOME/Workspace/coding"
 | `SAFEHOUSE_NAMESPACE_ROOT`  | unset                                  | If set, enable namespace-wide RW grant              |
 | `SAFEHOUSE_PROXY_URL`       | `http://127.0.0.1:8118`                | Loopback proxy URL (empty string disables)          |
 | `SAFEHOUSE_BRIDGE_CLAUDE`   | `1`                                    | Set to `0` to skip the Claude OAuth bridge          |
+| `SAFEHOUSE_BRIDGE_GH`       | `1`                                    | Set to `0` to skip the gh CLI token bridge          |
 | `SAFEHOUSE_EXTRA_ARGS`      | unset                                  | Extra args passed verbatim to `safehouse`           |
 
 ### Git push over SSH
@@ -159,7 +160,13 @@ If you'd rather keep ssh denied, push over HTTPS instead - `gh auth token`
 plus a stored credential helper works inside the sandbox without
 relaxing the policy.
 
-## How the credential bridge works
+## How the credential bridges work
+
+Two bridges, both same pattern: extract a single credential from the
+Keychain outside the sandbox, expose it to the sandboxed process via a
+mechanism that doesn't require Keychain access at runtime.
+
+### Claude
 
 Claude Code stores its OAuth token in the macOS login Keychain as a generic
 password item named `Claude Code-credentials`. The auto-included
@@ -190,6 +197,22 @@ The bridge owns this file end-to-end:
 So token refresh keeps working across sandboxed sessions and stays in
 sync with what unsandboxed claude would see in the Keychain. No
 `/login` re-seed needed in the common case.
+
+### gh CLI
+
+`gh` stores its OAuth token in the Keychain too (see `gh auth status` line
+ending in `(keyring)`). Without the bridge, `gh auth status` inside the
+sandbox reports `The token in default is invalid` (misleading - the token
+isn't invalid, the Keychain is just unreachable).
+
+The wrapper extracts the token outside the sandbox via `gh auth token` and
+exports it as `GH_TOKEN`, which gh respects over any Keychain or
+`hosts.yml` lookup. Cleaner than the Claude bridge because gh is stateless
+about token refresh: no on-disk artifact, no cleanup, no sync-back. The
+env var dies with the wrapper process.
+
+If `gh` is not installed on the host, or `gh auth token` returns empty,
+the bridge silently no-ops.
 
 If you'd rather grant wholesale Keychain access (Safehouse's default),
 use Safehouse directly and skip this wrapper.

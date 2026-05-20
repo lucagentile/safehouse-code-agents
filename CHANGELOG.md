@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Added gh CLI token bridge. `gh auth token` is read on the host before
+  entering the sandbox and exported as `GH_TOKEN` so the sandboxed gh CLI
+  authenticates without Keychain access. Disable with `SAFEHOUSE_BRIDGE_GH=0`.
+  Fixes the misleading `gh auth status` "The token in default is invalid"
+  error inside the sandbox.
 - Wrapper no longer unsets `SSH_AUTH_SOCK`. Combined with
   `SAFEHOUSE_EXTRA_ARGS="--enable=ssh"`, this lets `git push` over
   `git@github.com:...` work from inside the sandbox. The base policy still

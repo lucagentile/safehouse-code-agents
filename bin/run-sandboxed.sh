@@ -21,6 +21,7 @@
 #   SAFEHOUSE_PROXY_URL       loopback proxy URL (default 127.0.0.1:8118)
 #                             empty string disables the proxy
 #   SAFEHOUSE_BRIDGE_CLAUDE   set to "0" to skip the Claude OAuth bridge
+#   SAFEHOUSE_BRIDGE_GH       set to "0" to skip the gh CLI token bridge
 #   SAFEHOUSE_EXTRA_ARGS      additional safehouse args appended verbatim
 
 set -euo pipefail
@@ -109,6 +110,20 @@ if [ "${SAFEHOUSE_BRIDGE_CLAUDE:-1}" != "0" ]; then
             fi
         fi
     fi
+fi
+
+# gh CLI token bridge.
+# gh stores its token in the macOS Keychain by default. Safehouse's auto-included
+# keychain.sb integration grants the agent wholesale Keychain access, but our
+# overlay re-denies that, so gh inside the sandbox reports "The token in
+# default is invalid". Extract the token outside the sandbox and export
+# GH_TOKEN, which gh respects over any Keychain/hosts.yml lookup. No
+# on-disk artifact, no cleanup needed; the env var dies with the wrapper.
+if [ "${SAFEHOUSE_BRIDGE_GH:-1}" != "0" ] && command -v gh >/dev/null 2>&1; then
+    if _gh_token="$(gh auth token 2>/dev/null)" && [ -n "$_gh_token" ]; then
+        export GH_TOKEN="$_gh_token"
+    fi
+    unset _gh_token
 fi
 
 cleanup() {
