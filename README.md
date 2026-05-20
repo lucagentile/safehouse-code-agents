@@ -156,12 +156,22 @@ trap 'rm -f "$HOME/.claude/.credentials.json"' EXIT INT TERM
 
 Claude on macOS reads its Keychain backend first; when that fails (it will,
 because we denied it), it falls back to `~/.claude/.credentials.json`,
-which we just wrote. On exit the file is unlinked.
+which we just wrote.
 
-Token refreshes during the session land in the same file and are discarded
-on exit. The Keychain still holds the original refresh token. If the
-refresh token rotates on the server, run `claude /login` once outside the
-sandbox to re-seed.
+The bridge owns this file end-to-end:
+
+- **At launch**, it always overwrites with a fresh copy from the Keychain.
+  This prevents a file leftover from a crashed previous session from
+  shadowing the current Keychain entry with stale tokens (manifests as
+  `API Error: 401 Invalid authentication credentials`).
+- **On exit**, if the file's contents changed during the session (claude
+  refreshed the access/refresh token), the new blob is written back into
+  the Keychain via `security add-generic-password -U`, then the file is
+  unlinked. The next launch picks up the refreshed tokens.
+
+So token refresh keeps working across sandboxed sessions and stays in
+sync with what unsandboxed claude would see in the Keychain. No
+`/login` re-seed needed in the common case.
 
 If you'd rather grant wholesale Keychain access (Safehouse's default),
 use Safehouse directly and skip this wrapper.

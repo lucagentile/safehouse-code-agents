@@ -83,27 +83,41 @@ fi
 # Credential bridge for Claude Code.
 # The overlay re-denies wholesale Keychain access. To keep claude logged in
 # we extract just its OAuth token outside the sandbox and write it to
-# ~/.claude/.credentials.json (claude's plaintext fallback). Unlinked on exit.
+# ~/.claude/.credentials.json (claude's plaintext fallback). The bridge owns
+# this file's lifecycle entirely: it always overwrites at startup (so a file
+# leftover from a crashed previous session can't shadow a fresh token), and
+# on exit it syncs the file back to the Keychain if claude refreshed the
+# token during the session, then unlinks the file.
 CRED_FILE=""
+CRED_PRE_HASH=""
 if [ "${SAFEHOUSE_BRIDGE_CLAUDE:-1}" != "0" ]; then
     CMD="$1"
     if [ "$CMD" = "claude" ] || [ "$(basename "$CMD" 2>/dev/null)" = "claude" ]; then
         if security find-generic-password -s "Claude Code-credentials" -w >/dev/null 2>&1; then
             CRED_FILE="$HOME/.claude/.credentials.json"
-            if [ -e "$CRED_FILE" ]; then
-                CRED_FILE=""
+            mkdir -p "$HOME/.claude"
+            umask 077
+            if security find-generic-password -s "Claude Code-credentials" -w \
+                > "$CRED_FILE" 2>/dev/null; then
+                CRED_PRE_HASH="$(shasum < "$CRED_FILE" 2>/dev/null | awk '{print $1}')"
             else
-                mkdir -p "$HOME/.claude"
-                umask 077
-                security find-generic-password -s "Claude Code-credentials" -w \
-                    > "$CRED_FILE" 2>/dev/null || { rm -f "$CRED_FILE"; CRED_FILE=""; }
+                rm -f "$CRED_FILE"; CRED_FILE=""
             fi
         fi
     fi
 fi
 
 cleanup() {
-    [ -n "$CRED_FILE" ] && rm -f "$CRED_FILE"
+    if [ -n "$CRED_FILE" ] && [ -f "$CRED_FILE" ]; then
+        POST_HASH="$(shasum < "$CRED_FILE" 2>/dev/null | awk '{print $1}')"
+        if [ -n "$POST_HASH" ] && [ "$POST_HASH" != "$CRED_PRE_HASH" ]; then
+            security add-generic-password -U \
+                -a "$(id -un)" \
+                -s "Claude Code-credentials" \
+                -w "$(cat "$CRED_FILE")" 2>/dev/null || true
+        fi
+        rm -f "$CRED_FILE"
+    fi
 }
 trap cleanup EXIT INT TERM
 

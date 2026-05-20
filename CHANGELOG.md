@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- Credential bridge: always overwrite `~/.claude/.credentials.json` at launch.
+  Previously the bridge refused to clobber a pre-existing file as a safety
+  guard, but in practice the only file ever in that path is one we wrote
+  ourselves; a leftover from a crashed session was hiding the current
+  Keychain token and producing `401 Invalid authentication credentials`.
+- Credential bridge: on exit, if the credentials file changed during the
+  session (claude refreshed its tokens), sync the new blob back into the
+  Keychain before unlinking. Token refresh now persists across sandboxed
+  sessions.
+
+## Initial release
+
 - Initial public release.
 - Live dependency on [Agent Safehouse](https://github.com/eugene1g/agent-safehouse) >= 0.10.0.
   This repo is a thin overlay, not a fork.
